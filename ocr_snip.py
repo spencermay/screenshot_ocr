@@ -295,4 +295,20 @@ def main():
     parser.add_argument(
         "--gui",
         action="store_true",
-        help="Launch the full window UI instead of snip-
+        help="Launch the full window UI instead of an immediate snip-and-run.",
+    )
+    args = parser.parse_args()
+
+    prompt = args.prompt if args.prompt else TASK_PROMPTS[args.task]
+
+    if args.gui:
+        app = QtWidgets.QApplication(sys.argv)
+        window = OcrWindow(default_model=args.model)
+        window.show()
+        sys.exit(app.exec_())
+    else:
+        direct_snip_flow(prompt=prompt, model=args.model)
+
+
+if __name__ == "__main__":
+    main()
