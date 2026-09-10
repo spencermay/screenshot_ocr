@@ -127,8 +127,6 @@ def qpixmap_to_png_bytes(pixmap: QtGui.QPixmap) -> bytes:
 # ---------- Direct snip-and-run mode (for keyboard shortcuts / terminal) ----------
 
 def direct_snip_flow(prompt: str, model: str):
-
-def direct_snip_flow(prompt: str, model: str):
     app = QtWidgets.QApplication(sys.argv)
     activate_mac_app()
     
