@@ -150,10 +150,10 @@ def direct_snip_flow(prompt: str, model: str):
         if rect.isNull() or rect.width() < 5 or rect.height() < 5:
             app.quit()
             return
-
-        full_pixmap = screen.grabWindow(0)
-        physical_rect = logical_rect_to_physical(rect, full_pixmap)
-        cropped = full_pixmap.copy(physical_rect)
+    
+        cropped = screen.grabWindow(
+            0, rect.x(), rect.y(), rect.width(), rect.height()
+        )
         img_bytes = qpixmap_to_png_bytes(cropped)
 
         try:
@@ -264,11 +264,11 @@ class OcrWindow(QtWidgets.QWidget):
         if rect.isNull() or rect.width() < 5 or rect.height() < 5:
             self.status_label.setText("Selection too small or cancelled.")
             return
-
+    
         screen = QtWidgets.QApplication.primaryScreen()
-        full_pixmap = screen.grabWindow(0)
-        physical_rect = logical_rect_to_physical(rect, full_pixmap)
-        cropped = full_pixmap.copy(physical_rect)
+        cropped = screen.grabWindow(
+            0, rect.x(), rect.y(), rect.width(), rect.height()
+        )
 
         self.image_preview.setPixmap(
             cropped.scaled(
