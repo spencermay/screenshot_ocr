@@ -92,6 +92,16 @@ class SnipOverlay(QtWidgets.QWidget):
             painter.drawRect(rect)
 
 
+def logical_rect_to_physical(rect: QtCore.QRect, pixmap: QtGui.QPixmap) -> QtCore.QRect:
+    """Convert a logical (point-based) rect into the pixmap's physical pixel space."""
+    dpr = pixmap.devicePixelRatio()
+    return QtCore.QRect(
+        int(rect.x() * dpr),
+        int(rect.y() * dpr),
+        int(rect.width() * dpr),
+        int(rect.height() * dpr),
+    )
+
 # ---------- OCR call ----------
 
 def run_ocr(img_bytes: bytes, prompt: str, model: str) -> str:
@@ -142,7 +152,8 @@ def direct_snip_flow(prompt: str, model: str):
             return
 
         full_pixmap = screen.grabWindow(0)
-        cropped = full_pixmap.copy(rect)
+        physical_rect = logical_rect_to_physical(rect, full_pixmap)
+        cropped = full_pixmap.copy(physical_rect)
         img_bytes = qpixmap_to_png_bytes(cropped)
 
         try:
@@ -256,7 +267,8 @@ class OcrWindow(QtWidgets.QWidget):
 
         screen = QtWidgets.QApplication.primaryScreen()
         full_pixmap = screen.grabWindow(0)
-        cropped = full_pixmap.copy(rect)
+        physical_rect = logical_rect_to_physical(rect, full_pixmap)
+        cropped = full_pixmap.copy(physical_rect)
 
         self.image_preview.setPixmap(
             cropped.scaled(
