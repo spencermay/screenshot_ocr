@@ -34,6 +34,31 @@ def activate_mac_app():
         app = NSApplication.sharedApplication()
         app.activateIgnoringOtherApps_(True)
 
+import subprocess
+import tempfile
+import os
+
+
+def grab_region_screencapture(x: int, y: int, w: int, h: int) -> bytes:
+    """
+    Capture an exact screen region using macOS's native `screencapture` tool.
+    This correctly handles Retina/scaled-resolution displays, unlike Qt's
+    grabWindow() on some macOS/Qt version combinations.
+    """
+    fd, tmp_path = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    try:
+        region = f"{x},{y},{w},{h}"
+        subprocess.run(
+            ["screencapture", "-x", "-R", region, tmp_path],
+            check=True,
+        )
+        with open(tmp_path, "rb") as f:
+            return f.read()
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
 TASK_PROMPTS = {
     "text": "Text Recognition:",
     "table": "Table Recognition:",
@@ -149,32 +174,105 @@ def direct_snip_flow(prompt: str, model: str):
     overlay = SnipOverlay(pixmap, geometry)
 
     def on_selected(rect: QtCore.QRect):
+        print("Selected rect:", rect, "isNull:", rect.isNull())
         if rect.isNull() or rect.width() < 5 or rect.height() < 5:
             app.quit()
             return
     
-        cropped = screen.grabWindow(
-            0, rect.x(), rect.y(), rect.width(), rect.height()
-        )
-        cropped.save("/tmp/debug_crop.png")
-
-        print(">>> Saved to tmp <<<")
-        
-        img_bytes = qpixmap_to_png_bytes(cropped)
-
+        try:
+            img_bytes = grab_region_screencapture(
+                rect.x(), rect.y(), rect.width(), rect.height()
+            )
+            with open("/tmp/debug_crop.png", "wb") as f:
+                f.write(img_bytes)
+            print("Saved debug crop, bytes:", len(img_bytes))
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            app.quit()
+            return
+    
         try:
             result_text = run_ocr(img_bytes, prompt, model)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             notify_mac("GLM-OCR Error", str(e))
             app.quit()
             return
-
+    
         clipboard = QtWidgets.QApplication.clipboard()
         clipboard.setText(result_text)
-
         preview = result_text if len(result_text) < 120 else result_text[:117] + "..."
         notify_mac("GLM-OCR: copied to clipboard", preview)
         app.quit()
+    
+    # def on_selected(rect: QtCore.QRect):
+    #     print("Selected rect:", rect, "isNull:", rect.isNull())
+    #     if rect.isNull() or rect.width() < 5 or rect.height() < 5:
+    #         app.quit()
+    #         return
+    
+    #     try:
+    #         cropped = screen.grabWindow(
+    #             0, rect.x(), rect.y(), rect.width(), rect.height()
+    #         )
+    #         print("Cropped pixmap size:", cropped.size(), "isNull:", cropped.isNull())
+    
+    #         save_path = "/tmp/debug_crop.png"
+    #         ok = cropped.save(save_path)
+    #         print("Saved debug crop:", ok, "to", save_path)
+    
+    #         img_bytes = qpixmap_to_png_bytes(cropped)
+    #         print("img_bytes length:", len(img_bytes))
+    #     except Exception as e:
+    #         import traceback
+    #         traceback.print_exc()
+    #         app.quit()
+    #         return
+    
+    #     try:
+    #         result_text = run_ocr(img_bytes, prompt, model)
+    #     except Exception as e:
+    #         import traceback
+    #         traceback.print_exc()
+    #         notify_mac("GLM-OCR Error", str(e))
+    #         app.quit()
+    #         return
+    
+    #     clipboard = QtWidgets.QApplication.clipboard()
+    #     clipboard.setText(result_text)
+    #     preview = result_text if len(result_text) < 120 else result_text[:117] + "..."
+    #     notify_mac("GLM-OCR: copied to clipboard", preview)
+    #     app.quit()
+    
+    # def on_selected(rect: QtCore.QRect):
+    #     if rect.isNull() or rect.width() < 5 or rect.height() < 5:
+    #         app.quit()
+    #         return
+    
+    #     cropped = screen.grabWindow(
+    #         0, rect.x(), rect.y(), rect.width(), rect.height()
+    #     )
+    #     cropped.save("/tmp/debug_crop.png")
+
+    #     print(">>> Saved to tmp <<<")
+        
+    #     img_bytes = qpixmap_to_png_bytes(cropped)
+
+    #     try:
+    #         result_text = run_ocr(img_bytes, prompt, model)
+    #     except Exception as e:
+    #         notify_mac("GLM-OCR Error", str(e))
+    #         app.quit()
+    #         return
+
+    #     clipboard = QtWidgets.QApplication.clipboard()
+    #     clipboard.setText(result_text)
+
+    #     preview = result_text if len(result_text) < 120 else result_text[:117] + "..."
+    #     notify_mac("GLM-OCR: copied to clipboard", preview)
+    #     app.quit()
 
     overlay.region_selected.connect(on_selected)
     overlay.show()
@@ -264,41 +362,44 @@ class OcrWindow(QtWidgets.QWidget):
         self.overlay = SnipOverlay(pixmap, geometry)
         self.overlay.region_selected.connect(self._on_region_selected)
         self.overlay.show()
-
+    
     def _on_region_selected(self, rect: QtCore.QRect):
         self.show()
         if rect.isNull() or rect.width() < 5 or rect.height() < 5:
             self.status_label.setText("Selection too small or cancelled.")
             return
     
-        screen = QtWidgets.QApplication.primaryScreen()
-        cropped = screen.grabWindow(
-            0, rect.x(), rect.y(), rect.width(), rect.height()
-        )
-        cropped.save("/tmp/debug_crop.png")
-
+        try:
+            img_bytes = grab_region_screencapture(
+                rect.x(), rect.y(), rect.width(), rect.height()
+            )
+        except Exception as e:
+            self.status_label.setText(f"Capture error: {e}")
+            return
+    
+        pixmap = QtGui.QPixmap()
+        pixmap.loadFromData(img_bytes)
         self.image_preview.setPixmap(
-            cropped.scaled(
+            pixmap.scaled(
                 self.image_preview.width(),
                 self.image_preview.height(),
                 QtCore.Qt.KeepAspectRatio,
                 QtCore.Qt.SmoothTransformation,
             )
         )
-
-        img_bytes = qpixmap_to_png_bytes(cropped)
+        
         prompt = self._current_prompt()
         model = self.model_edit.text().strip() or "glm-ocr"
-
+    
         self.status_label.setText(f'Running OCR (prompt: "{prompt}")...')
         QtWidgets.QApplication.processEvents()
-
+    
         try:
             result_text = run_ocr(img_bytes, prompt, model)
         except Exception as e:
             self.status_label.setText(f"Error: {e}")
             return
-
+    
         self.result_edit.setPlainText(result_text)
         QtWidgets.QApplication.clipboard().setText(result_text)
         self.status_label.setText("Done. Copied to clipboard.")
