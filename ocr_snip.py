@@ -51,7 +51,6 @@ class SnipOverlay(QtWidgets.QWidget):
         self.setWindowFlags(
             QtCore.Qt.FramelessWindowHint
             | QtCore.Qt.WindowStaysOnTopHint
-            | QtCore.Qt.Tool
         )
         self.setCursor(QtCore.Qt.CrossCursor)
         self.origin = None
@@ -128,8 +127,11 @@ def qpixmap_to_png_bytes(pixmap: QtGui.QPixmap) -> bytes:
 # ---------- Direct snip-and-run mode (for keyboard shortcuts / terminal) ----------
 
 def direct_snip_flow(prompt: str, model: str):
-    app = QtWidgets.QApplication(sys.argv)
 
+def direct_snip_flow(prompt: str, model: str):
+    app = QtWidgets.QApplication(sys.argv)
+    activate_mac_app()
+    
     screen = QtWidgets.QApplication.primaryScreen()
     geometry = screen.geometry()
     pixmap = screen.grabWindow(0)
@@ -161,8 +163,9 @@ def direct_snip_flow(prompt: str, model: str):
 
     overlay.region_selected.connect(on_selected)
     overlay.show()
+    overlay.raise_()
+    overlay.activateWindow()
     app.exec_()
-
 
 # ---------- Full GUI window mode ----------
 
