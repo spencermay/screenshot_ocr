@@ -154,6 +154,8 @@ def direct_snip_flow(prompt: str, model: str):
         cropped = screen.grabWindow(
             0, rect.x(), rect.y(), rect.width(), rect.height()
         )
+        cropped.save("/tmp/debug_crop.png")
+        
         img_bytes = qpixmap_to_png_bytes(cropped)
 
         try:
@@ -269,6 +271,7 @@ class OcrWindow(QtWidgets.QWidget):
         cropped = screen.grabWindow(
             0, rect.x(), rect.y(), rect.width(), rect.height()
         )
+        cropped.save("/tmp/debug_crop.png")
 
         self.image_preview.setPixmap(
             cropped.scaled(
