@@ -20,6 +20,18 @@ import subprocess
 from PyQt5 import QtWidgets, QtGui, QtCore
 import ollama
 
+try:
+    from AppKit import NSApplication
+    HAS_APPKIT = True
+except ImportError:
+    HAS_APPKIT = False
+
+def activate_mac_app():
+    """Force this app to the foreground on macOS."""
+    if HAS_APPKIT:
+        app = NSApplication.sharedApplication()
+        app.activateIgnoringOtherApps_(True)
+
 TASK_PROMPTS = {
     "text": "Text Recognition:",
     "table": "Table Recognition:",
