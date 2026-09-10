@@ -20,6 +20,8 @@ import subprocess
 from PyQt5 import QtWidgets, QtGui, QtCore
 import ollama
 
+print(">>> RUNNING PATCHED ocr_snip.py — marker v3 <<<")
+
 try:
     from AppKit import NSApplication
     HAS_APPKIT = True
@@ -155,6 +157,8 @@ def direct_snip_flow(prompt: str, model: str):
             0, rect.x(), rect.y(), rect.width(), rect.height()
         )
         cropped.save("/tmp/debug_crop.png")
+
+        print(">>> Saved to tmp <<<")
         
         img_bytes = qpixmap_to_png_bytes(cropped)
 
