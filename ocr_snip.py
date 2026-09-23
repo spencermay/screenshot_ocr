@@ -11,7 +11,8 @@ Terminal usage:
 
 Requirements:
     pip install PyQt5 ollama
-    ollama pull glm-ocr   (and ensure `ollama serve` is running)
+    ollama pull glm-ocr   (The following is probably not necessary: 'and ensure `ollama serve` is running')
+    ollama create glm-ocr-no-repeat -f ./Modelfile
 
 Made with Claude Sonnet 5.
 """
@@ -21,6 +22,8 @@ import argparse
 import subprocess
 from PyQt5 import QtWidgets, QtGui, QtCore
 import ollama
+
+DEFAULT_MODEL="glm-ocr-no-repeat"
 
 try:
     from AppKit import NSApplication
@@ -60,7 +63,7 @@ def grab_region_screencapture(x: int, y: int, w: int, h: int) -> bytes:
             os.remove(tmp_path)
 
 TASK_PROMPTS = {
-    "text": "Text Recognition:",
+    "text": "Text Recognition:",#"\"Extract all text from this image, exactly as it appears, one field per line.\"",#
     "table": "Table Recognition:",
     "figure": "Figure Recognition:",
 }
@@ -142,16 +145,101 @@ def logical_rect_to_physical(rect: QtCore.QRect, pixmap: QtGui.QPixmap) -> QtCor
 
 # ---------- OCR call ----------
 
+def _normalize_line(line: str) -> str:
+    """Loose normalization so near-identical repeats compare equal."""
+    return "".join(line.split()).strip("`").lower()
+
+
+def _clean_ocr_text(raw: str) -> str:
+    """
+    glm-ocr transcribes the region correctly once, then falls into a loop
+    re-emitting the same content (interleaved with stray ``` / ```markdown
+    fences and blank lines) until it exhausts the context window. The first
+    occurrence is the real result; everything after is loop noise.
+
+    Walk the lines and stop at the point where the model starts repeating
+    content it has already produced. Also drop markdown code-fence lines,
+    which glm-ocr injects but are never part of a screenshot's text.
+    """
+    kept = []
+    seen = set()
+    for line in raw.splitlines():
+        stripped = line.strip()
+        # Skip code-fence lines the model injects (```, ```markdown, etc.)
+        if stripped.startswith("```"):
+            continue
+        norm = _normalize_line(line)
+        if not norm:
+            # Preserve blank lines only if we haven't started repeating.
+            kept.append(line)
+            continue
+        if norm in seen:
+            # We've hit a line identical to one already transcribed: the
+            # repetition loop has begun, so stop here.
+            break
+        seen.add(norm)
+        kept.append(line)
+    return "\n".join(kept).strip()
+
+
 def run_ocr(img_bytes: bytes, prompt: str, model: str) -> str:
-    response = ollama.chat(
+    # glm-ocr can fall into a repetition loop where it re-emits the same
+    # content until it exhausts the context window, which makes a single OCR
+    # call take a very long time and appear to hang. We defend against this
+    # two ways:
+    #   1. Stream the response and abort generation as soon as a line repeats
+    #      one already produced (early exit -> fast).
+    #   2. num_predict as a hard backstop so it can never run unbounded.
+    # A final _clean_ocr_text pass strips fences and any residual repeats.
+    seen = set()
+    parts = []
+    buffer = ""
+
+    stream = ollama.chat(
         model=model,
         messages=[{
             "role": "user",
             "content": prompt,
             "images": [img_bytes],
         }],
+        stream=True,
+        options={
+            "temperature": 0.1,
+            "top_p": 0.00001,
+            "top_k": 1,
+            "repeat_penalty": 1.3,
+            "repeat_last_n": 256,
+            # Hard ceiling on generated tokens: a backstop in case the
+            # repetition detector below somehow misses.
+            "num_predict": 1024,
+        },
     )
-    return response["message"]["content"].strip()
+
+    repeating = False
+    for chunk in stream:
+        buffer += chunk["message"]["content"]
+        # Process complete lines as they arrive.
+        while "\n" in buffer:
+            line, buffer = buffer.split("\n", 1)
+            norm = _normalize_line(line)
+            if norm and norm in seen:
+                repeating = True
+                break
+            if norm:
+                seen.add(norm)
+            parts.append(line)
+        if repeating:
+            # Close the stream early; the loop has started.
+            try:
+                stream.close()
+            except Exception:
+                pass
+            break
+
+    if not repeating and buffer:
+        parts.append(buffer)
+
+    return _clean_ocr_text("\n".join(parts))
 
 
 def notify_mac(title: str, message: str):
@@ -223,7 +311,7 @@ def direct_snip_flow(prompt: str, model: str):
 # ---------- Full GUI window mode ----------
 
 class OcrWindow(QtWidgets.QWidget):
-    def __init__(self, default_model="glm-ocr"):
+    def __init__(self, default_model=DEFAULT_MODEL):
         super().__init__()
         self.setWindowTitle("GLM-OCR Snip Tool")
         self.setMinimumWidth(520)
@@ -329,7 +417,7 @@ class OcrWindow(QtWidgets.QWidget):
         )
         
         prompt = self._current_prompt()
-        model = self.model_edit.text().strip() or "glm-ocr"
+        model = self.model_edit.text().strip() or DEFAULT_MODEL
     
         self.status_label.setText(f'Running OCR (prompt: "{prompt}")...')
         QtWidgets.QApplication.processEvents()
@@ -362,8 +450,8 @@ def main():
     )
     parser.add_argument(
         "--model",
-        default="glm-ocr",
-        help="Ollama model name/tag to use (default: glm-ocr)",
+        default=DEFAULT_MODEL,
+        help="Ollama model name/tag to use (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--gui",

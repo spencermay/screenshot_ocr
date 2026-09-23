@@ -1,0 +1,11 @@
+FROM glm-ocr:latest
+# Set the temperature here (0 for strict accuracy, 0.1 to prevent loops)
+PARAMETER temperature 0.1
+PARAMETER top_p 0.00001
+PARAMETER top_k 1
+
+# Penalizes the model for repeating the exact same words
+PARAMETER repeat_penalty 1.2
+
+# Looks back further in the conversation to check for repetitions
+PARAMETER repeat_last_n 128
