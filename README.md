@@ -9,13 +9,17 @@ Produced (primarily) with Claude Sonnet 5.
 - macOS (uses the native `screencapture` tool and notification banners)
 - [Ollama](https://ollama.com) running locally:
     - ```bash
-    curl -fsSL https://ollama.com/install.sh | sh
-    ```
+      curl -fsSL https://ollama.com/install.sh | sh
+      ```
+- Clone the repo:
+    - ```bash
+      cd Documents/Projects        # Or a folder of your choice
+      git clone https://github.com/spencermay/screenshot_ocr
+      ```
 - Python 3 with `PyQt5` and `ollama`:
-
-```bash
-pip install PyQt5 ollama
-```
+    - ```bash
+      pip install PyQt5 ollama
+      ```
 
 ## Setup
 
