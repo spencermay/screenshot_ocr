@@ -7,7 +7,10 @@ Produced (primarily) with Claude Sonnet 5.
 ## Requirements
 
 - macOS (uses the native `screencapture` tool and notification banners)
-- [Ollama](https://ollama.com) running locally
+- [Ollama](https://ollama.com) running locally:
+    - ```bash
+    curl -fsSL https://ollama.com/install.sh | sh
+    ```
 - Python 3 with `PyQt5` and `ollama`:
 
 ```bash
@@ -38,7 +41,13 @@ Go to the Shortcuts app (e.g. press command+space and then type Shortcuts and pr
 4. Replace `echo "Hello World"` with:
 `python3 /PATH/TO/ocr_snip.py --task text`
 
-You will have to replace `/PATH/TO/ocr_snip.py` with the path to your ocr_snip.py file.
+You will have to replace `/PATH/TO/ocr_snip.py` with the path to your ocr_snip.py file (from your home directory). If you installed PyQt5 and ollama in a venv, you will have to replace python3 with the path to the python in the venv from the home directory.
+
+5. Name the Shortcut in the top left-hand corner, if you would like
+
+6. Click the info (i) button in the top right of the Shortcuts app and select the box next to "Run with: [    ]". Then hit the keys for your desired shorcut, like Command+Alt+3 or whatever you want.
+
+7. You likely will have to grant permissions in Settings to the apps in which you want to use this Shortcut. If a dialogue comes up to grant the permission when you run it, that may work. Else you might have to grant permission in Settings/Privacy & Security/Screen & Audio Recording.
 
 ## Usage
 
@@ -66,7 +75,7 @@ Options:
 
 The tool streams the model's output and stops early if it detects a repetition loop, so a single snip returns quickly. Retina/HiDPI displays are handled correctly.
 
-### LaTeXify numbered problems (`latexify_problems.py`)
+### Not a stable part of the project: LaTeXify numbered problems (`latexify_problems.py`)
 
 Wraps a list of numbered problems in `\begin{problem}{N} ... \end{problem}` blocks. Reads stdin, writes stdout:
 
